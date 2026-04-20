@@ -59,6 +59,13 @@ function BottomSheet({
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
       <Animated.View style={[sh.container, { transform: [{ translateY }] }]}>
+        <LinearGradient
+          colors={['rgba(0,0,0,0.10)', 'transparent']}
+          style={sh.topShadow}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          pointerEvents="none"
+        />
         <View {...panResponder.panHandlers} style={sh.handleZone}>
           <View style={sh.handle} />
         </View>
@@ -76,7 +83,11 @@ const sh = StyleSheet.create({
     paddingBottom: 32,
     shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: -4 }, elevation: 20,
   },
-  handleZone: { paddingVertical: 12, alignItems: 'center' },
+  topShadow: {
+    position: 'absolute', top: 0, left: 0, right: 0, height: 28,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24, zIndex: 1,
+  },
+  handleZone: { paddingVertical: 12, alignItems: 'center', zIndex: 2 },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#CBD5E1' },
 });
 
