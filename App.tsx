@@ -10,54 +10,32 @@ import {
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, Feather } from '@expo/vector-icons';
+import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as NavigationBar from 'expo-navigation-bar';
 import { useEffect } from 'react';
 
 const { width } = Dimensions.get('window');
+const BLUE = '#2563EB';
 
-const PURPLE = '#7B5CF0';
-const TEAL = '#00C9BB';
-
-function StressBarChart() {
-  const bars = [0.4, 0.6, 0.5, 0.8, 0.7, 0.9, 1.0, 0.85];
-  return (
-    <View style={styles.barChart}>
-      {bars.map((h, i) => (
-        <View key={i} style={[styles.bar, { height: h * 44 }]} />
-      ))}
-    </View>
-  );
-}
-
-function SleepWaveform() {
-  const heights = [0.5, 1.0, 0.6, 0.3, 0.8, 0.4, 0.7, 0.2, 0.9, 0.5, 0.6, 0.8];
-  return (
-    <View style={styles.waveform}>
-      {heights.map((h, i) => (
-        <View key={i} style={[styles.waveBar, { height: h * 44 }]} />
-      ))}
-    </View>
-  );
-}
-
-function InsightItem({
+function StatCard({
   emoji,
-  title,
+  label,
   value,
+  bgColor,
 }: {
   emoji: string;
-  title: string;
+  label: string;
   value: string;
+  bgColor: string;
 }) {
   return (
-    <View style={styles.insightItem}>
-      <View style={styles.insightIcon}>
-        <Text style={styles.insightEmoji}>{emoji}</Text>
+    <View style={styles.statCard}>
+      <View style={[styles.statIconBg, { backgroundColor: bgColor }]}>
+        <Text style={styles.statEmoji}>{emoji}</Text>
       </View>
       <View>
-        <Text style={styles.insightTitle}>{title}</Text>
-        <Text style={styles.insightValue}>{value}</Text>
+        <Text style={styles.statLabel}>{label}</Text>
+        <Text style={styles.statValue}>{value}</Text>
       </View>
     </View>
   );
@@ -74,108 +52,91 @@ export default function App() {
   return (
     <View style={styles.root}>
       <StatusBar style="dark" hidden={true} />
+      <LinearGradient
+        colors={['#BFD9F2', '#D6E9F8', '#F0F8FF', '#ffffff']}
+        style={StyleSheet.absoluteFill}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 0.55 }}
+      />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 82 }}>
 
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.userRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarEmoji}>👩</Text>
-            </View>
-            <View>
-              <Text style={styles.userName}>Sarah Guy</Text>
-              <View style={styles.badgeRow}>
-                <Text style={styles.starIcon}>⭐</Text>
-                <Text style={styles.badgeText}>Pro Member</Text>
-              </View>
-            </View>
-          </View>
+          <Text style={styles.greeting}>Good afternoon, Mah</Text>
           <TouchableOpacity style={styles.notifBtn}>
             <Ionicons name="notifications-outline" size={22} color="#333" />
             <View style={styles.notifDot} />
           </TouchableOpacity>
         </View>
 
-        {/* Hero */}
-        <LinearGradient
-          colors={['#E4D5FF', '#D4C2FF', '#EDD5FF']}
-          style={styles.hero}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <View style={styles.speechBubble}>
-            <Text style={styles.speechText}>
-              Feeling good, Sarah?{'\n'}Let's do a quick check-in!
-            </Text>
-            <TouchableOpacity style={styles.startScanBtn}>
-              <Text style={styles.startScanText}>Start Scan</Text>
-            </TouchableOpacity>
+        {/* Mascot */}
+        <View style={styles.mascotWrap}>
+          <Image
+            source={require('./assets/mascot.png')}
+            style={styles.mascot}
+            resizeMode="contain"
+          />
+        </View>
+
+        {/* State of Mind Card */}
+        <View style={styles.card}>
+          <View style={styles.cardTopRow}>
+            <Text style={styles.cardSubLabel}>State of Mind</Text>
+            <View style={styles.streakBadge}>
+              <Text style={styles.streakText}>5 Days Striks </Text>
+              <Text style={styles.streakFire}>🔥</Text>
+            </View>
           </View>
-          <View style={styles.mascotContainer}>
-            <Image
-              source={require('./assets/mascot.png')}
-              style={styles.mascot}
-              resizeMode="contain"
-            />
-          </View>
-        </LinearGradient>
+          <Text style={styles.cardQuestion}>How do you feel right now?</Text>
+          <TouchableOpacity style={styles.logMoodBtn}>
+            <Ionicons name="add-circle" size={20} color={BLUE} />
+            <Text style={styles.logMoodText}>Log a Mood</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Mental Health Statistics */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Mental Health Statistics</Text>
+          <Text style={styles.sectionTitle}>Metal Health Statistics</Text>
           <View style={styles.statsRow}>
-            <View style={[styles.statCard, { backgroundColor: PURPLE }]}>
-              <Text style={styles.statCardLabel}>Stress Indicator</Text>
-              <StressBarChart />
-              <View style={styles.statCardBottom}>
-                <Text style={styles.statCardValue}>High</Text>
-                <TouchableOpacity style={styles.arrowBtn}>
-                  <Feather name="arrow-up-right" size={14} color="#333" />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={[styles.statCard, { backgroundColor: TEAL }]}>
-              <Text style={styles.statCardLabel}>Sleep Duration</Text>
-              <SleepWaveform />
-              <View style={styles.statCardBottom}>
-                <Text style={styles.statCardValue}>
-                  <Text style={styles.statValueBig}>8h </Text>
-                  <Text style={styles.statValueSm}>20m</Text>
-                </Text>
-                <TouchableOpacity style={styles.arrowBtn}>
-                  <Feather name="arrow-up-right" size={14} color="#333" />
-                </TouchableOpacity>
-              </View>
-            </View>
+            <StatCard emoji="❤️" label="Heart Rate" value="91 BPM" bgColor="#FEE2E2" />
+            <StatCard emoji="🌙" label="Sleep Duration" value="8h 20m" bgColor="#DBEAFE" />
           </View>
         </View>
 
-        {/* Quick Insights */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Insights</Text>
-          <View style={styles.insightsGrid}>
-            <InsightItem emoji="👅" title="Tongue Color" value="Normal" />
-            <InsightItem emoji="🫦" title="Tongue Cover" value="Thick" />
-            <InsightItem emoji="💧" title="Humidity" value="Dry" />
-            <InsightItem emoji="🔵" title="Herpes" value="No" />
+        {/* Check-in Card */}
+        <View style={styles.checkinCard}>
+          <View style={styles.checkinAvatar}>
+            <Image
+              source={require('./assets/mascot.png')}
+              style={styles.checkinAvatarImg}
+              resizeMode="contain"
+            />
           </View>
+          <View style={styles.checkinText}>
+            <Text style={styles.checkinTitle}>Feeling good, Mah?</Text>
+            <Text style={styles.checkinSub}>Let's do a quick check-in!</Text>
+          </View>
+          <TouchableOpacity style={styles.playBtn}>
+            <Ionicons name="play" size={16} color="#333" />
+          </TouchableOpacity>
         </View>
+
       </ScrollView>
 
       {/* Bottom Nav */}
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navItem}>
-          <View style={styles.activeNavIcon}>
-            <Ionicons name="home" size={20} color="#fff" />
-          </View>
+          <MaterialCommunityIcons name="pentagon" size={24} color="#111" />
+          <Text style={styles.navLabelActive}>For You</Text>
+          <View style={styles.activeDot} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem}>
-          <Feather name="search" size={24} color="#bbb" />
+          <Feather name="circle" size={24} color="#999" />
+          <Text style={styles.navLabel}>Progress</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.fabWrap}>
           <LinearGradient
-            colors={['#A78BFF', PURPLE]}
+            colors={['#818CF8', '#7C3AED']}
             style={styles.fab}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -184,10 +145,13 @@ export default function App() {
           </LinearGradient>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem}>
-          <Feather name="bar-chart-2" size={24} color="#bbb" />
+          <Feather name="bar-chart-2" size={24} color="#999" />
+          <Text style={styles.navLabel}>Self-Care</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem}>
-          <Feather name="user" size={24} color="#bbb" />
+          <View style={styles.profileAvatar}>
+            <Text style={styles.profileEmoji}>👩</Text>
+          </View>
         </TouchableOpacity>
       </View>
     </View>
@@ -197,35 +161,22 @@ export default function App() {
 const CARD_WIDTH = (width - 52) / 2;
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F0FF', paddingBottom: 0 },
+  root: { flex: 1, backgroundColor: '#BFD9F2' },
 
   // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 10,
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 4,
   },
-  userRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F0D9A8',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarEmoji: { fontSize: 30 },
-  userName: { fontSize: 17, fontWeight: '700', color: '#1A1A2E' },
-  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
-  starIcon: { fontSize: 10 },
-  badgeText: { fontSize: 11, color: '#999' },
+  greeting: { fontSize: 22, fontWeight: '800', color: '#0F172A' },
   notifBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
@@ -242,130 +193,123 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#EF4444',
     borderWidth: 1.5,
     borderColor: '#fff',
   },
 
-  // Hero
-  hero: {
-    marginHorizontal: 20,
-    borderRadius: 24,
-    padding: 18,
-    minHeight: 190,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-  speechBubble: {
+  // Mascot
+  mascotWrap: { alignItems: 'center', marginTop: 8, marginBottom: 4 },
+  mascot: { width: 220, height: 220 },
+
+  // State of Mind card
+  card: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 14,
-    maxWidth: '55%',
-    marginBottom: 8,
-    shadowColor: '#9B7EFF',
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  speechText: { fontSize: 13, color: '#333', lineHeight: 19, marginBottom: 10 },
-  startScanBtn: {
-    borderWidth: 1.5,
-    borderColor: PURPLE,
+    marginHorizontal: 16,
     borderRadius: 20,
-    paddingVertical: 5,
-    paddingHorizontal: 14,
-    alignSelf: 'center',
+    padding: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
-  startScanText: { color: PURPLE, fontSize: 12, fontWeight: '600' },
-  mascotContainer: { alignItems: 'center', justifyContent: 'flex-end' },
-  mascot: { width: 150, height: 160 },
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  cardSubLabel: { fontSize: 13, color: '#94A3B8' },
+  streakBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: BLUE,
+    borderRadius: 20,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  streakText: { fontSize: 12, color: BLUE, fontWeight: '600' },
+  streakFire: { fontSize: 13 },
+  cardQuestion: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 14 },
+  logMoodBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DBEAFE',
+    borderRadius: 14,
+    paddingVertical: 14,
+    gap: 8,
+  },
+  logMoodText: { fontSize: 15, fontWeight: '700', color: BLUE },
 
   // Stats
-  section: { paddingHorizontal: 20, marginTop: 24 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A2E', marginBottom: 14 },
+  section: { paddingHorizontal: 16, marginTop: 24 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A', marginBottom: 12 },
   statsRow: { flexDirection: 'row', gap: 12 },
   statCard: {
     flex: 1,
-    borderRadius: 20,
-    padding: 14,
-    minHeight: 148,
-    justifyContent: 'space-between',
-  },
-  statCardLabel: { color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: '600' },
-  barChart: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 4,
-    height: 50,
-    marginVertical: 8,
-  },
-  bar: {
-    flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    borderRadius: 3,
-  },
-  waveform: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    height: 50,
-    marginVertical: 8,
-  },
-  waveBar: {
-    width: 4,
-    backgroundColor: 'rgba(255,255,255,0.8)',
-    borderRadius: 3,
-  },
-  statCardBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  statCardValue: { color: '#fff', fontSize: 20, fontWeight: '700' },
-  statValueBig: { fontSize: 22, fontWeight: '800', color: '#fff' },
-  statValueSm: { fontSize: 16, fontWeight: '600', color: '#fff' },
-  arrowBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
     backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Quick Insights
-  insightsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  insightItem: {
+    borderRadius: 18,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 12,
-    gap: 10,
-    width: CARD_WIDTH,
-    shadowColor: '#9B7EFF',
-    shadowOpacity: 0.06,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  insightIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#F5F0FF',
+  statIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  insightEmoji: { fontSize: 20 },
-  insightTitle: { fontSize: 13, fontWeight: '600', color: '#1A1A2E' },
-  insightValue: { fontSize: 11, color: '#999', marginTop: 1 },
+  statEmoji: { fontSize: 22 },
+  statLabel: { fontSize: 11, color: '#94A3B8', marginBottom: 2 },
+  statValue: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
+
+  // Check-in card
+  checkinCard: {
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 20,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  checkinAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#0F172A',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkinAvatarImg: { width: 48, height: 48 },
+  checkinText: { flex: 1 },
+  checkinTitle: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
+  checkinSub: { fontSize: 13, color: '#64748B', marginTop: 2 },
+  playBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   // Bottom Nav
   bottomNav: {
@@ -383,26 +327,37 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -4 },
     elevation: 12,
   },
-  navItem: { alignItems: 'center', justifyContent: 'center', padding: 6 },
-  activeNavIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: PURPLE,
-    alignItems: 'center',
-    justifyContent: 'center',
+  navItem: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  navLabel: { fontSize: 11, color: '#94A3B8', marginTop: 3 },
+  navLabelActive: { fontSize: 11, color: '#0F172A', fontWeight: '600', marginTop: 3 },
+  activeDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#0F172A',
+    marginTop: 3,
   },
-  fabWrap: { marginTop: -28 },
+  fabWrap: { marginTop: -26 },
   fab: {
     width: 58,
     height: 58,
     borderRadius: 29,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: PURPLE,
+    shadowColor: '#7C3AED',
     shadowOpacity: 0.4,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 8,
   },
+  profileAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#1D4ED8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  profileEmoji: { fontSize: 22 },
 });
