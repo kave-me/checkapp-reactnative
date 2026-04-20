@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as NavigationBar from 'expo-navigation-bar';
 import { useEffect, useState, useRef } from 'react';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import ScanScreen from './ScanScreen';
 
 const { width, height } = Dimensions.get('window');
 const BLUE = '#2563EB';
@@ -93,208 +93,6 @@ const sheet = StyleSheet.create({
   },
   handleZone: { paddingVertical: 12, alignItems: 'center' },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#CBD5E1' },
-});
-
-// ── Scan Camera Screen ────────────────────────────────────────────────────────
-const TIPS = [
-  'Stick your tongue out fully',
-  'Ensure good lighting',
-  'Hold still for 2 seconds',
-  'Keep camera 20cm away',
-];
-
-function ScanScreen({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const [permission, requestPermission] = useCameraPermissions();
-  const [tipIndex, setTipIndex] = useState(0);
-  const tipOpacity = useRef(new Animated.Value(1)).current;
-  const scanLineY = useRef(new Animated.Value(0)).current;
-  const frameScale = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (!visible) return;
-
-    // Cycle tips with crossfade
-    const interval = setInterval(() => {
-      Animated.timing(tipOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
-        setTipIndex(i => (i + 1) % TIPS.length);
-        Animated.timing(tipOpacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
-      });
-    }, 2200);
-
-    // Scan line loop
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(scanLineY, { toValue: 1, duration: 1800, useNativeDriver: true }),
-        Animated.timing(scanLineY, { toValue: 0, duration: 1800, useNativeDriver: true }),
-      ])
-    ).start();
-
-    // Frame pulse
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(frameScale, { toValue: 1.04, duration: 900, useNativeDriver: true }),
-        Animated.timing(frameScale, { toValue: 1, duration: 900, useNativeDriver: true }),
-      ])
-    ).start();
-
-    return () => clearInterval(interval);
-  }, [visible]);
-
-  if (!visible) return null;
-
-  // Permission flow
-  if (!permission) return null;
-  if (!permission.granted) {
-    return (
-      <Modal visible animationType="slide" onRequestClose={onClose}>
-        <View style={cam.permScreen}>
-          <Ionicons name="camera-outline" size={64} color="#94A3B8" />
-          <Text style={cam.permTitle}>Camera Access Needed</Text>
-          <Text style={cam.permSub}>We need your camera to scan your tongue for health analysis.</Text>
-          <TouchableOpacity style={cam.permBtn} onPress={requestPermission}>
-            <Text style={cam.permBtnText}>Allow Camera</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={cam.cancelLink} onPress={onClose}>
-            <Text style={cam.cancelLinkText}>Not now</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-    );
-  }
-
-  const FRAME_W = width * 0.72;
-  const FRAME_H = FRAME_W * 0.62;
-  const CORNER = 22;
-  const BORDER_W = 3;
-
-  return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
-      <View style={cam.root}>
-        <CameraView style={StyleSheet.absoluteFill} facing="front" />
-
-        {/* Dark overlay top */}
-        <View style={[cam.mask, { top: 0, height: (height - FRAME_H) / 2 - 10 }]} />
-        {/* Dark overlay bottom */}
-        <View style={[cam.mask, { bottom: 0, height: (height - FRAME_H) / 2 - 10 }]} />
-        {/* Dark overlay left */}
-        <View style={[cam.maskSide, { left: 0, top: (height - FRAME_H) / 2 - 10, width: (width - FRAME_W) / 2, height: FRAME_H + 20 }]} />
-        {/* Dark overlay right */}
-        <View style={[cam.maskSide, { right: 0, top: (height - FRAME_H) / 2 - 10, width: (width - FRAME_W) / 2, height: FRAME_H + 20 }]} />
-
-        {/* Scan frame */}
-        <Animated.View style={[cam.frame, {
-          width: FRAME_W, height: FRAME_H,
-          transform: [{ scale: frameScale }],
-        }]}>
-          {/* Corner brackets */}
-          {[
-            { top: 0, left: 0, borderTopWidth: BORDER_W, borderLeftWidth: BORDER_W, borderTopLeftRadius: CORNER },
-            { top: 0, right: 0, borderTopWidth: BORDER_W, borderRightWidth: BORDER_W, borderTopRightRadius: CORNER },
-            { bottom: 0, left: 0, borderBottomWidth: BORDER_W, borderLeftWidth: BORDER_W, borderBottomLeftRadius: CORNER },
-            { bottom: 0, right: 0, borderBottomWidth: BORDER_W, borderRightWidth: BORDER_W, borderBottomRightRadius: CORNER },
-          ].map((s, i) => (
-            <View key={i} style={[cam.corner, s]} />
-          ))}
-
-          {/* Scan line */}
-          <Animated.View style={[cam.scanLine, {
-            transform: [{
-              translateY: scanLineY.interpolate({
-                inputRange: [0, 1], outputRange: [0, FRAME_H - 2],
-              }),
-            }],
-          }]} />
-        </Animated.View>
-
-        {/* Header */}
-        <View style={cam.header}>
-          <TouchableOpacity style={cam.closeBtn} onPress={onClose}>
-            <Ionicons name="close" size={22} color="#fff" />
-          </TouchableOpacity>
-          <Text style={cam.headerTitle}>Tongue Scan</Text>
-          <View style={{ width: 40 }} />
-        </View>
-
-        {/* Instruction */}
-        <View style={cam.instructionBox}>
-          <Text style={cam.instructionLabel}>👅 Position your tongue in the frame</Text>
-        </View>
-
-        {/* Tip */}
-        <View style={cam.tipBox}>
-          <Animated.Text style={[cam.tipText, { opacity: tipOpacity }]}>
-            💡 {TIPS[tipIndex]}
-          </Animated.Text>
-          <TouchableOpacity
-            style={cam.captureBtn}
-            onPress={() => { onClose(); Alert.alert('Scan Complete', 'Your tongue scan has been analysed. Results will appear shortly.'); }}
-          >
-            <LinearGradient colors={['#818CF8', '#4F46E5']} style={cam.captureBtnInner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-              <Ionicons name="scan" size={28} color="#fff" />
-            </LinearGradient>
-          </TouchableOpacity>
-          <Text style={cam.captureHint}>Tap to capture</Text>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-const cam = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
-  mask: { position: 'absolute', left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)' },
-  maskSide: { position: 'absolute', backgroundColor: 'rgba(0,0,0,0.6)' },
-  frame: {
-    position: 'absolute',
-    alignSelf: 'center',
-    top: '50%',
-    marginTop: -90,
-    overflow: 'hidden',
-  },
-  corner: {
-    position: 'absolute', width: 28, height: 28, borderColor: '#fff',
-  },
-  scanLine: {
-    position: 'absolute', left: 8, right: 8, height: 2,
-    backgroundColor: 'rgba(99,102,241,0.8)',
-    shadowColor: '#818CF8', shadowOpacity: 1, shadowRadius: 6, elevation: 4,
-  },
-  header: {
-    position: 'absolute', top: 28, left: 0, right: 0,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20,
-  },
-  closeBtn: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  headerTitle: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  instructionBox: {
-    position: 'absolute', top: '50%', marginTop: -160,
-    backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 20,
-    paddingVertical: 8, paddingHorizontal: 18,
-  },
-  instructionLabel: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  tipBox: {
-    position: 'absolute', bottom: 52, left: 0, right: 0,
-    alignItems: 'center', gap: 16,
-  },
-  tipText: { color: 'rgba(255,255,255,0.85)', fontSize: 14 },
-  captureBtn: {
-    shadowColor: '#4F46E5', shadowOpacity: 0.6, shadowRadius: 16, elevation: 10,
-  },
-  captureBtnInner: {
-    width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: 'rgba(255,255,255,0.3)',
-  },
-  captureHint: { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
-  permScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 16 },
-  permTitle: { fontSize: 20, fontWeight: '700', color: '#0F172A' },
-  permSub: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 21 },
-  permBtn: { backgroundColor: BLUE, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 40, marginTop: 8 },
-  permBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  cancelLink: { marginTop: 4 },
-  cancelLinkText: { color: '#94A3B8', fontSize: 14 },
 });
 
 // ── Notification Sheet Content ────────────────────────────────────────────────
@@ -428,7 +226,12 @@ export default function App() {
       </View>
 
       {/* Scan Camera */}
-      <ScanScreen visible={scanVisible} onClose={() => setScanVisible(false)} />
+      <ScanScreen
+        visible={scanVisible}
+        onClose={() => setScanVisible(false)}
+        accentColor={BLUE}
+        accentGradient={['#818CF8', '#2563EB']}
+      />
 
       {/* Notification Sheet */}
       <BottomSheet visible={notifVisible} onClose={() => setNotifVisible(false)} snapHeight={320}>
