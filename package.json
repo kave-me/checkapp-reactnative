@@ -11,6 +11,7 @@
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
     "expo": "~54.0.33",
+    "expo-camera": "~17.0.10",
     "expo-linear-gradient": "~15.0.8",
     "expo-navigation-bar": "~5.0.10",
     "expo-status-bar": "~3.0.9",

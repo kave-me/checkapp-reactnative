@@ -1,137 +1,312 @@
 import { StatusBar } from 'expo-status-bar';
 import {
-  StyleSheet,
-  Text,
-  View,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-  Image,
-  Platform,
-  Modal,
-  Animated,
-  Alert,
+  StyleSheet, Text, View, ScrollView, TouchableOpacity,
+  Dimensions, Image, Platform, Modal, Animated, Alert,
+  PanResponder,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as NavigationBar from 'expo-navigation-bar';
 import { useEffect, useState, useRef } from 'react';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 
 const { width, height } = Dimensions.get('window');
 const BLUE = '#2563EB';
 
-// ── Scan Modal ────────────────────────────────────────────────────────────────
-function ScanModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const ring1 = useRef(new Animated.Value(0)).current;
-  const ring2 = useRef(new Animated.Value(0)).current;
+// ── Animated Bottom Sheet ─────────────────────────────────────────────────────
+function BottomSheet({
+  visible, onClose, children, snapHeight,
+}: {
+  visible: boolean; onClose: () => void; children: React.ReactNode; snapHeight: number;
+}) {
+  const translateY = useRef(new Animated.Value(snapHeight)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      Animated.parallel([
+        Animated.spring(translateY, {
+          toValue: 0, damping: 22, stiffness: 280, useNativeDriver: true,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 1, duration: 220, useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.spring(translateY, {
+          toValue: snapHeight, damping: 22, stiffness: 280, useNativeDriver: true,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 0, duration: 180, useNativeDriver: true,
+        }),
+      ]).start(() => setMounted(false));
+    }
+  }, [visible]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, { dy }) => {
+        if (dy > 0) translateY.setValue(dy);
+      },
+      onPanResponderRelease: (_, { dy, vy }) => {
+        if (dy > snapHeight * 0.35 || vy > 0.8) {
+          onClose();
+        } else {
+          Animated.spring(translateY, { toValue: 0, damping: 22, stiffness: 280, useNativeDriver: true }).start();
+        }
+      },
+    })
+  ).current;
+
+  if (!mounted) return null;
+
+  return (
+    <Modal visible transparent animationType="none" onRequestClose={onClose}>
+      <Animated.View style={[sheet.backdrop, { opacity: backdropOpacity }]}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} />
+      </Animated.View>
+      <Animated.View style={[sheet.container, { transform: [{ translateY }] }]}>
+        <View {...panResponder.panHandlers} style={sheet.handleZone}>
+          <View style={sheet.handle} />
+        </View>
+        {children}
+      </Animated.View>
+    </Modal>
+  );
+}
+
+const sheet = StyleSheet.create({
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  container: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingBottom: 32,
+    shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: -4 },
+    elevation: 20,
+  },
+  handleZone: { paddingVertical: 12, alignItems: 'center' },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#CBD5E1' },
+});
+
+// ── Scan Camera Screen ────────────────────────────────────────────────────────
+const TIPS = [
+  'Stick your tongue out fully',
+  'Ensure good lighting',
+  'Hold still for 2 seconds',
+  'Keep camera 20cm away',
+];
+
+function ScanScreen({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const [permission, requestPermission] = useCameraPermissions();
+  const [tipIndex, setTipIndex] = useState(0);
+  const tipOpacity = useRef(new Animated.Value(1)).current;
+  const scanLineY = useRef(new Animated.Value(0)).current;
+  const frameScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (!visible) return;
-    const pulse = (val: Animated.Value, delay: number) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(val, { toValue: 1, duration: 1400, useNativeDriver: true }),
-          Animated.timing(val, { toValue: 0, duration: 0, useNativeDriver: true }),
-        ])
-      );
-    const a1 = pulse(ring1, 0);
-    const a2 = pulse(ring2, 700);
-    a1.start(); a2.start();
-    return () => { a1.stop(); a2.stop(); };
+
+    // Cycle tips with crossfade
+    const interval = setInterval(() => {
+      Animated.timing(tipOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
+        setTipIndex(i => (i + 1) % TIPS.length);
+        Animated.timing(tipOpacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+      });
+    }, 2200);
+
+    // Scan line loop
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scanLineY, { toValue: 1, duration: 1800, useNativeDriver: true }),
+        Animated.timing(scanLineY, { toValue: 0, duration: 1800, useNativeDriver: true }),
+      ])
+    ).start();
+
+    // Frame pulse
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(frameScale, { toValue: 1.04, duration: 900, useNativeDriver: true }),
+        Animated.timing(frameScale, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+
+    return () => clearInterval(interval);
   }, [visible]);
 
-  const ringStyle = (val: Animated.Value) => ({
-    opacity: val.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.6, 0.2, 0] }),
-    transform: [{ scale: val.interpolate({ inputRange: [0, 1], outputRange: [1, 2.4] }) }],
-  });
+  if (!visible) return null;
+
+  // Permission flow
+  if (!permission) return null;
+  if (!permission.granted) {
+    return (
+      <Modal visible animationType="slide" onRequestClose={onClose}>
+        <View style={cam.permScreen}>
+          <Ionicons name="camera-outline" size={64} color="#94A3B8" />
+          <Text style={cam.permTitle}>Camera Access Needed</Text>
+          <Text style={cam.permSub}>We need your camera to scan your tongue for health analysis.</Text>
+          <TouchableOpacity style={cam.permBtn} onPress={requestPermission}>
+            <Text style={cam.permBtnText}>Allow Camera</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={cam.cancelLink} onPress={onClose}>
+            <Text style={cam.cancelLinkText}>Not now</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+    );
+  }
+
+  const FRAME_W = width * 0.72;
+  const FRAME_H = FRAME_W * 0.62;
+  const CORNER = 22;
+  const BORDER_W = 3;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={modal.overlay}>
-        <View style={modal.box}>
-          <Text style={modal.title}>Scanning...</Text>
-          <View style={modal.scanRingWrap}>
-            <Animated.View style={[modal.ring, ringStyle(ring1)]} />
-            <Animated.View style={[modal.ring, ringStyle(ring2)]} />
-            <View style={modal.scanIcon}>
-              <Ionicons name="scan" size={48} color={BLUE} />
-            </View>
-          </View>
-          <Text style={modal.scanHint}>Point your camera at your tongue</Text>
-          <TouchableOpacity style={modal.closeBtn} onPress={onClose}>
-            <Text style={modal.closeBtnText}>Cancel</Text>
+    <Modal visible animationType="slide" onRequestClose={onClose}>
+      <View style={cam.root}>
+        <CameraView style={StyleSheet.absoluteFill} facing="front" />
+
+        {/* Dark overlay top */}
+        <View style={[cam.mask, { top: 0, height: (height - FRAME_H) / 2 - 10 }]} />
+        {/* Dark overlay bottom */}
+        <View style={[cam.mask, { bottom: 0, height: (height - FRAME_H) / 2 - 10 }]} />
+        {/* Dark overlay left */}
+        <View style={[cam.maskSide, { left: 0, top: (height - FRAME_H) / 2 - 10, width: (width - FRAME_W) / 2, height: FRAME_H + 20 }]} />
+        {/* Dark overlay right */}
+        <View style={[cam.maskSide, { right: 0, top: (height - FRAME_H) / 2 - 10, width: (width - FRAME_W) / 2, height: FRAME_H + 20 }]} />
+
+        {/* Scan frame */}
+        <Animated.View style={[cam.frame, {
+          width: FRAME_W, height: FRAME_H,
+          transform: [{ scale: frameScale }],
+        }]}>
+          {/* Corner brackets */}
+          {[
+            { top: 0, left: 0, borderTopWidth: BORDER_W, borderLeftWidth: BORDER_W, borderTopLeftRadius: CORNER },
+            { top: 0, right: 0, borderTopWidth: BORDER_W, borderRightWidth: BORDER_W, borderTopRightRadius: CORNER },
+            { bottom: 0, left: 0, borderBottomWidth: BORDER_W, borderLeftWidth: BORDER_W, borderBottomLeftRadius: CORNER },
+            { bottom: 0, right: 0, borderBottomWidth: BORDER_W, borderRightWidth: BORDER_W, borderBottomRightRadius: CORNER },
+          ].map((s, i) => (
+            <View key={i} style={[cam.corner, s]} />
+          ))}
+
+          {/* Scan line */}
+          <Animated.View style={[cam.scanLine, {
+            transform: [{
+              translateY: scanLineY.interpolate({
+                inputRange: [0, 1], outputRange: [0, FRAME_H - 2],
+              }),
+            }],
+          }]} />
+        </Animated.View>
+
+        {/* Header */}
+        <View style={cam.header}>
+          <TouchableOpacity style={cam.closeBtn} onPress={onClose}>
+            <Ionicons name="close" size={22} color="#fff" />
           </TouchableOpacity>
+          <Text style={cam.headerTitle}>Tongue Scan</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        {/* Instruction */}
+        <View style={cam.instructionBox}>
+          <Text style={cam.instructionLabel}>👅 Position your tongue in the frame</Text>
+        </View>
+
+        {/* Tip */}
+        <View style={cam.tipBox}>
+          <Animated.Text style={[cam.tipText, { opacity: tipOpacity }]}>
+            💡 {TIPS[tipIndex]}
+          </Animated.Text>
+          <TouchableOpacity
+            style={cam.captureBtn}
+            onPress={() => { onClose(); Alert.alert('Scan Complete', 'Your tongue scan has been analysed. Results will appear shortly.'); }}
+          >
+            <LinearGradient colors={['#818CF8', '#4F46E5']} style={cam.captureBtnInner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+              <Ionicons name="scan" size={28} color="#fff" />
+            </LinearGradient>
+          </TouchableOpacity>
+          <Text style={cam.captureHint}>Tap to capture</Text>
         </View>
       </View>
     </Modal>
   );
 }
 
-// ── Notifications Modal ───────────────────────────────────────────────────────
+const cam = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
+  mask: { position: 'absolute', left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)' },
+  maskSide: { position: 'absolute', backgroundColor: 'rgba(0,0,0,0.6)' },
+  frame: {
+    position: 'absolute',
+    alignSelf: 'center',
+    top: '50%',
+    marginTop: -90,
+    overflow: 'hidden',
+  },
+  corner: {
+    position: 'absolute', width: 28, height: 28, borderColor: '#fff',
+  },
+  scanLine: {
+    position: 'absolute', left: 8, right: 8, height: 2,
+    backgroundColor: 'rgba(99,102,241,0.8)',
+    shadowColor: '#818CF8', shadowOpacity: 1, shadowRadius: 6, elevation: 4,
+  },
+  header: {
+    position: 'absolute', top: 28, left: 0, right: 0,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20,
+  },
+  closeBtn: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  headerTitle: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  instructionBox: {
+    position: 'absolute', top: '50%', marginTop: -160,
+    backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 20,
+    paddingVertical: 8, paddingHorizontal: 18,
+  },
+  instructionLabel: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  tipBox: {
+    position: 'absolute', bottom: 52, left: 0, right: 0,
+    alignItems: 'center', gap: 16,
+  },
+  tipText: { color: 'rgba(255,255,255,0.85)', fontSize: 14 },
+  captureBtn: {
+    shadowColor: '#4F46E5', shadowOpacity: 0.6, shadowRadius: 16, elevation: 10,
+  },
+  captureBtnInner: {
+    width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 3, borderColor: 'rgba(255,255,255,0.3)',
+  },
+  captureHint: { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
+  permScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 16 },
+  permTitle: { fontSize: 20, fontWeight: '700', color: '#0F172A' },
+  permSub: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 21 },
+  permBtn: { backgroundColor: BLUE, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 40, marginTop: 8 },
+  permBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  cancelLink: { marginTop: 4 },
+  cancelLinkText: { color: '#94A3B8', fontSize: 14 },
+});
+
+// ── Notification Sheet Content ────────────────────────────────────────────────
 const NOTIFS = [
-  { id: 1, icon: '💊', title: 'Time for your check-in!', time: '2 min ago' },
-  { id: 2, icon: '😴', title: 'Sleep goal reached — 8h 20m', time: '1 hr ago' },
-  { id: 3, icon: '🔥', title: '5-day streak! Keep it up', time: '3 hr ago' },
+  { id: 1, icon: '💊', title: 'Time for your check-in!', time: '2 min ago', unread: true },
+  { id: 2, icon: '😴', title: 'Sleep goal reached — 8h 20m', time: '1 hr ago', unread: true },
+  { id: 3, icon: '🔥', title: '5-day streak! Keep it up', time: '3 hr ago', unread: false },
 ];
 
-function NotifModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={modal.overlay} activeOpacity={1} onPress={onClose}>
-        <View style={modal.notifSheet}>
-          <View style={modal.notifHandle} />
-          <Text style={modal.title}>Notifications</Text>
-          {NOTIFS.map(n => (
-            <View key={n.id} style={modal.notifRow}>
-              <Text style={modal.notifIcon}>{n.icon}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={modal.notifText}>{n.title}</Text>
-                <Text style={modal.notifTime}>{n.time}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-      </TouchableOpacity>
-    </Modal>
-  );
-}
-
-// ── Mood Modal ────────────────────────────────────────────────────────────────
+// ── Mood Sheet ────────────────────────────────────────────────────────────────
 const MOODS = ['😄', '🙂', '😐', '😔', '😢'];
 const MOOD_LABELS = ['Great', 'Good', 'Okay', 'Low', 'Sad'];
-
-function MoodModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const [selected, setSelected] = useState<number | null>(null);
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={modal.overlay} activeOpacity={1} onPress={onClose}>
-        <View style={modal.moodSheet}>
-          <View style={modal.notifHandle} />
-          <Text style={modal.title}>How are you feeling?</Text>
-          <View style={modal.moodRow}>
-            {MOODS.map((m, i) => (
-              <TouchableOpacity
-                key={i}
-                style={[modal.moodItem, selected === i && modal.moodSelected]}
-                onPress={() => setSelected(i)}
-              >
-                <Text style={modal.moodEmoji}>{m}</Text>
-                <Text style={modal.moodLabel}>{MOOD_LABELS[i]}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <TouchableOpacity
-            style={[modal.logBtn, !selected && selected !== 0 && modal.logBtnDisabled]}
-            onPress={() => { onClose(); Alert.alert('Mood logged!', `You're feeling ${MOOD_LABELS[selected ?? 0]} today.`); setSelected(null); }}
-          >
-            <Text style={modal.logBtnText}>Log Mood</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    </Modal>
-  );
-}
 
 // ── Stat Card ─────────────────────────────────────────────────────────────────
 function StatCard({ emoji, label, value, bgColor }: { emoji: string; label: string; value: string; bgColor: string }) {
@@ -153,6 +328,7 @@ export default function App() {
   const [scanVisible, setScanVisible] = useState(false);
   const [notifVisible, setNotifVisible] = useState(false);
   const [moodVisible, setMoodVisible] = useState(false);
+  const [selectedMood, setSelectedMood] = useState<number | null>(null);
 
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -171,7 +347,6 @@ export default function App() {
       />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 82 }}>
-
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.greeting}>Good afternoon, Mah</Text>
@@ -190,9 +365,9 @@ export default function App() {
         <View style={styles.card}>
           <View style={styles.cardTopRow}>
             <Text style={styles.cardSubLabel}>State of Mind</Text>
-            <TouchableOpacity style={styles.streakBadge}>
+            <View style={styles.streakBadge}>
               <Text style={styles.streakText}>5 Days Striks 🔥</Text>
-            </TouchableOpacity>
+            </View>
           </View>
           <Text style={styles.cardQuestion}>How do you feel right now?</Text>
           <TouchableOpacity style={styles.logMoodBtn} onPress={() => setMoodVisible(true)}>
@@ -201,7 +376,7 @@ export default function App() {
           </TouchableOpacity>
         </View>
 
-        {/* Mental Health Statistics */}
+        {/* Stats */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Metal Health Statistics</Text>
           <View style={styles.statsRow}>
@@ -223,7 +398,6 @@ export default function App() {
             <Ionicons name="play" size={16} color="#333" />
           </View>
         </TouchableOpacity>
-
       </ScrollView>
 
       {/* Bottom Nav */}
@@ -253,9 +427,59 @@ export default function App() {
         </TouchableOpacity>
       </View>
 
-      <ScanModal visible={scanVisible} onClose={() => setScanVisible(false)} />
-      <NotifModal visible={notifVisible} onClose={() => setNotifVisible(false)} />
-      <MoodModal visible={moodVisible} onClose={() => setMoodVisible(false)} />
+      {/* Scan Camera */}
+      <ScanScreen visible={scanVisible} onClose={() => setScanVisible(false)} />
+
+      {/* Notification Sheet */}
+      <BottomSheet visible={notifVisible} onClose={() => setNotifVisible(false)} snapHeight={320}>
+        <View style={{ paddingHorizontal: 20 }}>
+          <Text style={styles.sheetTitle}>Notifications</Text>
+          {NOTIFS.map(n => (
+            <View key={n.id} style={styles.notifRow}>
+              <View style={[styles.notifIconWrap, n.unread && styles.notifIconUnread]}>
+                <Text style={{ fontSize: 22 }}>{n.icon}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.notifText}>{n.title}</Text>
+                <Text style={styles.notifTime}>{n.time}</Text>
+              </View>
+              {n.unread && <View style={styles.unreadDot} />}
+            </View>
+          ))}
+        </View>
+      </BottomSheet>
+
+      {/* Mood Sheet */}
+      <BottomSheet visible={moodVisible} onClose={() => setMoodVisible(false)} snapHeight={300}>
+        <View style={{ paddingHorizontal: 20 }}>
+          <Text style={styles.sheetTitle}>How are you feeling?</Text>
+          <View style={styles.moodRow}>
+            {MOODS.map((m, i) => (
+              <TouchableOpacity
+                key={i}
+                style={[styles.moodItem, selectedMood === i && styles.moodSelected]}
+                onPress={() => setSelectedMood(i)}
+              >
+                <Text style={styles.moodEmoji}>{m}</Text>
+                <Text style={[styles.moodLabel, selectedMood === i && styles.moodLabelActive]}>
+                  {MOOD_LABELS[i]}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity
+            style={[styles.logBtn, selectedMood === null && styles.logBtnDisabled]}
+            onPress={() => {
+              if (selectedMood === null) return;
+              setMoodVisible(false);
+              Alert.alert('Mood Logged!', `You're feeling ${MOOD_LABELS[selectedMood]} today. 🌟`);
+              setSelectedMood(null);
+            }}
+          >
+            <Text style={styles.logBtnText}>Log Mood</Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheet>
     </View>
   );
 }
@@ -264,19 +488,14 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#C2DDF5' },
 
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 22,
-    paddingTop: 18,
-    paddingBottom: 4,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 22, paddingTop: 18, paddingBottom: 4,
   },
   greeting: { fontSize: 22, fontWeight: '800', color: '#0F172A' },
   notifBtn: {
     width: 44, height: 44, borderRadius: 14, backgroundColor: '#fff',
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 }, elevation: 3,
+    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3,
   },
   notifDot: {
     position: 'absolute', top: 9, right: 10, width: 8, height: 8,
@@ -288,14 +507,12 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: '#fff', marginHorizontal: 16, borderRadius: 20, padding: 18,
-    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 }, elevation: 3,
+    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 3,
   },
   cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   cardSubLabel: { fontSize: 13, color: '#94A3B8' },
   streakBadge: {
-    flexDirection: 'row', alignItems: 'center', borderWidth: 1.5,
-    borderColor: BLUE, borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10,
+    borderWidth: 1.5, borderColor: BLUE, borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10,
   },
   streakText: { fontSize: 12, color: BLUE, fontWeight: '600' },
   cardQuestion: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 14 },
@@ -311,8 +528,7 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1, backgroundColor: '#fff', borderRadius: 18, padding: 16,
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 }, elevation: 2,
+    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
   statIconBg: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   statEmoji: { fontSize: 22 },
@@ -320,10 +536,9 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
 
   checkinCard: {
-    backgroundColor: '#fff', marginHorizontal: 16, marginTop: 12, borderRadius: 20,
-    padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14,
-    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 }, elevation: 3,
+    backgroundColor: '#fff', marginHorizontal: 16, marginTop: 12, borderRadius: 20, padding: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 3,
   },
   checkinAvatar: {
     width: 52, height: 52, borderRadius: 26, backgroundColor: '#0F172A',
@@ -342,8 +557,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
     backgroundColor: '#fff', paddingVertical: 10, paddingBottom: 10,
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 16,
-    shadowOffset: { width: 0, height: -4 }, elevation: 12,
+    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: -4 }, elevation: 12,
   },
   navItem: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   navLabel: { fontSize: 11, color: '#94A3B8', marginTop: 3 },
@@ -352,78 +566,38 @@ const styles = StyleSheet.create({
   fabWrap: { marginTop: -26 },
   fab: {
     width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#7C3AED', shadowOpacity: 0.4, shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 }, elevation: 8,
+    shadowColor: '#7C3AED', shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 8,
   },
   profileAvatar: {
     width: 36, height: 36, borderRadius: 18, backgroundColor: '#1D4ED8',
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
   profileEmoji: { fontSize: 22 },
-});
 
-const modal = StyleSheet.create({
-  overlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end', alignItems: 'center',
-  },
-  box: {
-    width: width - 40, backgroundColor: '#fff', borderRadius: 24,
-    padding: 28, alignItems: 'center', marginBottom: 40,
-  },
-  title: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 24 },
-
-  // Scan
-  scanRingWrap: { width: 120, height: 120, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  ring: {
-    position: 'absolute', width: 100, height: 100, borderRadius: 50,
-    borderWidth: 2, borderColor: BLUE,
-  },
-  scanIcon: {
-    width: 80, height: 80, borderRadius: 40, backgroundColor: '#EFF6FF',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  scanHint: { fontSize: 14, color: '#64748B', marginBottom: 24, textAlign: 'center' },
-  closeBtn: {
-    borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 14,
-    paddingVertical: 12, paddingHorizontal: 32,
-  },
-  closeBtnText: { fontSize: 15, fontWeight: '600', color: '#64748B' },
-
-  // Notifications
-  notifSheet: {
-    width, backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 20, paddingBottom: 32,
-  },
-  notifHandle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0',
-    alignSelf: 'center', marginBottom: 16,
-  },
+  // Sheets
+  sheetTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 18 },
   notifRow: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
   },
-  notifIcon: { fontSize: 28 },
+  notifIconWrap: {
+    width: 44, height: 44, borderRadius: 22, backgroundColor: '#F8FAFC',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  notifIconUnread: { backgroundColor: '#EFF6FF' },
   notifText: { fontSize: 14, fontWeight: '600', color: '#0F172A' },
   notifTime: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
-
-  // Mood
-  moodSheet: {
-    width, backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 20, paddingBottom: 32,
-  },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: BLUE },
   moodRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24 },
   moodItem: {
     alignItems: 'center', padding: 10, borderRadius: 16,
-    borderWidth: 2, borderColor: 'transparent',
+    borderWidth: 2, borderColor: 'transparent', flex: 1,
   },
   moodSelected: { borderColor: BLUE, backgroundColor: '#EFF6FF' },
-  moodEmoji: { fontSize: 32, marginBottom: 4 },
-  moodLabel: { fontSize: 11, color: '#64748B' },
-  logBtn: {
-    backgroundColor: BLUE, borderRadius: 14, paddingVertical: 14,
-    alignItems: 'center',
-  },
+  moodEmoji: { fontSize: 30, marginBottom: 4 },
+  moodLabel: { fontSize: 10, color: '#94A3B8' },
+  moodLabelActive: { color: BLUE, fontWeight: '600' },
+  logBtn: { backgroundColor: BLUE, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
   logBtnDisabled: { backgroundColor: '#CBD5E1' },
   logBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 });
